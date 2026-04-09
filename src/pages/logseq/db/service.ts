@@ -31,22 +31,37 @@ export default class LogseqDBService implements LogseqServiceInterface {
     // are flagged with `page?: true` and block results with `page?: null`.
     // `uuid` is the top-level user-facing uuid; there is no nested
     // `block/uuid` wrapper like older Datascript-style responses had.
+    const pageHits = resp.blocks.filter((item) => item['page?'] === true);
+    const blockHits = resp.blocks.filter((item) => !item['page?']);
+
+    // Memoize getPage within this one search so multiple blocks on
+    // the same parent page only trigger a single logseq.Editor.getPage
+    // call. The cache key is whichever identifier getPage accepts
+    // (id > uuid > name), matching the lookup in client.getPage.
+    const pageCache = new Map<unknown, Promise<any>>();
+    const getPageCached = (pageRef: any): Promise<any> => {
+      const key =
+        pageRef?.id ?? pageRef?.uuid ?? pageRef?.name ?? pageRef;
+      let p = pageCache.get(key);
+      if (!p) {
+        p = this.client.getPage(pageRef);
+        pageCache.set(key, p);
+      }
+      return p;
+    };
+
     response.pages = await Promise.all(
-      resp.blocks
-        .filter((item) => item['page?'] === true)
-        .map(async (item) => {
-          return await this.client.getPage({
-            uuid: item.uuid,
-          });
-        }),
+      pageHits.map((item) => getPageCached({ uuid: item.uuid })),
     );
+
     response.blocks = await Promise.all(
-      resp.blocks
-        .filter((item) => !item['page?'])
-        .map(
-          async (item) =>
-            await this.getBlock(item.uuid, graphName, query),
-        ),
+      blockHits.map(async (item) => {
+        const block = await this.client.getBlockViaUuid(item.uuid, {
+          includeChildren: false,
+        });
+        block.page = await getPageCached(block.page);
+        return renderBlock(block, graphName, query);
+      }),
     );
 
     return response;
