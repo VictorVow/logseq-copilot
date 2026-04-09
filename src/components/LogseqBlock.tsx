@@ -14,11 +14,14 @@ type LogseqBlockProps = {
 type LogseqBlockItemProps = {
   graph: string;
   block: LogseqBlockType;
-  // Children rendered inside an already-expanded parent are passed their
-  // tree inline (the deferred fetch returns a fully-normalized tree and
-  // the UI recurses over it). Root-level items leave this undefined so
-  // the component knows to issue its own fetch on button click.
-  initialChildren?: LogseqBlockType[];
+  // True for the top-level search-result block. Roots render the
+  // "Show / Hide child blocks" toggle and own the deferred fetch state.
+  // Nested descendants (isRoot=false) never render the toggle: they
+  // always show their children inline when they have any, matching the
+  // way a non-collapsed outline looks in Logseq desktop. Collapsed
+  // descendants arrive with their `children` field already stripped by
+  // the service-layer tree walker, so they naturally render as leaves.
+  isRoot?: boolean;
 };
 
 const toBlockLink = (graph: string, block: LogseqBlockType) => {
@@ -34,23 +37,22 @@ const toBlockLink = (graph: string, block: LogseqBlockType) => {
   );
 };
 
-// Renders one block and its (on-demand fetched) descendants. Extracted
-// from LogseqBlock so every block in a search-result group can own its
-// own marker / expand state instead of aliasing through blocks[0]. The
-// component calls itself recursively when the fetched tree is expanded,
-// so each nested descendant reuses the same marker controls and
-// "Show child blocks" affordance without extra code paths.
+// Renders one block and (for the root search hit) its on-demand fetched
+// descendants. Nested descendants reuse the same component but skip the
+// toggle: their children render inline automatically. Extracting this
+// out of LogseqBlock also fixes a latent bug where marker state was
+// aliased through blocks[0] for every item in a group.
 const LogseqBlockItem = ({
   graph,
   block,
-  initialChildren,
+  isRoot = false,
 }: LogseqBlockItemProps) => {
   const [checked, setChecked] = useState(false);
   const [status, setStatus] = useState('');
   const [showChildren, setShowChildren] = useState(false);
-  const [children, setChildren] = useState<LogseqBlockType[] | undefined>(
-    initialChildren,
-  );
+  const [fetchedChildren, setFetchedChildren] = useState<
+    LogseqBlockType[] | undefined
+  >(undefined);
   const [loadingChildren, setLoadingChildren] = useState(false);
   const [childrenError, setChildrenError] = useState<string | null>(null);
 
@@ -83,13 +85,16 @@ const LogseqBlockItem = ({
         statusUpdate(message.marker);
         return;
       }
+      // Only roots fetch children, so only roots should react to the
+      // fetch result. Nested items don't listen for this message at all.
       if (
+        isRoot &&
         message?.type === 'get-block-children-result' &&
         message.uuid === block.uuid
       ) {
         setLoadingChildren(false);
         if (message.status === 'success') {
-          setChildren(message.children ?? []);
+          setFetchedChildren(message.children ?? []);
           setChildrenError(null);
           setShowChildren(true);
         } else {
@@ -100,7 +105,7 @@ const LogseqBlockItem = ({
     Browser.runtime.onMessage.addListener(listener);
     statusUpdate(block.marker);
     return () => Browser.runtime.onMessage.removeListener(listener);
-  }, [block.uuid, block.marker]);
+  }, [block.uuid, block.marker, isRoot]);
 
   const updateMarker = (marker: string) => {
     Browser.runtime.sendMessage({
@@ -151,9 +156,9 @@ const LogseqBlockItem = ({
   };
 
   const toggleChildren = () => {
-    // If we already have the tree (either from a previous fetch or from
-    // the parent expansion), toggling is a pure visibility flip.
-    if (children !== undefined) {
+    // If we already have the tree from a previous fetch, toggling is a
+    // pure visibility flip. Otherwise kick off the deferred fetch.
+    if (fetchedChildren !== undefined) {
       setShowChildren((v) => !v);
       return;
     }
@@ -170,7 +175,17 @@ const LogseqBlockItem = ({
     return null;
   }
 
-  const showButton = block.hasChildren === true;
+  // Root items show the toggle and gate their fetched tree behind
+  // showChildren state. Nested items always render whatever children
+  // they arrived with (collapsed descendants already have `children`
+  // stripped by the service-layer tree walker).
+  const childrenToRender = isRoot
+    ? showChildren
+      ? fetchedChildren
+      : undefined
+    : block.children;
+
+  const showToggleButton = isRoot && block.hasChildren === true;
   const buttonLabel = loadingChildren
     ? 'Loading child blocks…'
     : showChildren
@@ -188,7 +203,7 @@ const LogseqBlockItem = ({
         {toBlockLink(graph, block)}
       </div>
       <LogseqProperties properties={block.properties} />
-      {showButton && (
+      {showToggleButton && (
         <button
           type="button"
           className={styles.showChildrenButton}
@@ -201,14 +216,14 @@ const LogseqBlockItem = ({
       {childrenError && (
         <div className={styles.childBlocksError}>{childrenError}</div>
       )}
-      {showChildren && children && children.length > 0 && (
+      {childrenToRender && childrenToRender.length > 0 && (
         <ul className={styles.childBlocks}>
-          {children.map((child) => (
+          {childrenToRender.map((child) => (
             <LogseqBlockItem
               key={child.uuid}
               graph={graph}
               block={child}
-              initialChildren={child.children}
+              isRoot={false}
             />
           ))}
         </ul>
@@ -224,9 +239,9 @@ export const LogseqBlock = ({ graph, blocks }: LogseqBlockProps) => {
 
   // Every block in a group shares the same parent page, so render the
   // page link once at the top and then hand each block off to its own
-  // LogseqBlockItem. The old code aliased all blocks through blocks[0]
-  // for marker state, which was a latent bug the moment the group had
-  // more than one hit.
+  // LogseqBlockItem. Top-level search hits are rendered as roots -- they
+  // get the "Show child blocks" toggle. Their nested descendants (once
+  // fetched) are rendered with isRoot=false and auto-expand.
   const headerBlock = blocks.find((b) => b.html);
   if (!headerBlock) return <></>;
 
@@ -238,7 +253,12 @@ export const LogseqBlock = ({ graph, blocks }: LogseqBlockProps) => {
       <div className={styles.blockBody}>
         <ul className={styles.blockContentList}>
           {blocks.map((block) => (
-            <LogseqBlockItem key={block.uuid} graph={graph} block={block} />
+            <LogseqBlockItem
+              key={block.uuid}
+              graph={graph}
+              block={block}
+              isRoot
+            />
           ))}
         </ul>
       </div>
