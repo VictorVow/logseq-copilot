@@ -5,8 +5,31 @@ abstract class SearchingEngine {
   getQuery(): string | null {
     return null;
   }
-  gotElement(): Element | null {
-    return null;
+  /**
+   * Universal mount point for the Logseq Copilot sidebar. All engines share
+   * a single zero-sized anchor `<div id="logseq-copilot-root">` on `document.body`.
+   * The floating button and side panel inside it use `position: fixed` and
+   * position themselves relative to the viewport, not this container.
+   *
+   * Idempotent: returns the existing node on re-invoke. Baidu re-runs via
+   * its MutationObserver-based `reload()` hook, so the guard prevents
+   * duplicate containers (and duplicate React roots).
+   */
+  gotElement(): Element {
+    const existing = document.getElementById('logseq-copilot-root');
+    if (existing) return existing;
+    const container = document.createElement('div');
+    container.id = 'logseq-copilot-root';
+    Object.assign(container.style, {
+      position: 'fixed',
+      top: '0',
+      right: '0',
+      width: '0',
+      height: '0',
+      zIndex: '2147483644',
+    });
+    document.body.appendChild(container);
+    return container;
   }
   reload(callback: Function): null {
     return null;
@@ -27,23 +50,6 @@ export class Google extends SearchingEngine {
     const query = searchURL.searchParams.get('q');
     return query;
   }
-
-  gotElement(): Element {
-    const container = document.createElement('div');
-    const asideElement = document.getElementById('rhs');
-
-    const hasAside = !!asideElement;
-
-    if (hasAside) {
-      asideElement.insertBefore(container, asideElement.firstChild);
-    } else {
-      const noAsideElement = document.getElementById('center_col');
-      noAsideElement?.parentNode?.appendChild(container);
-      container.id = 'rhs';
-      container.style.width = '372px';
-    }
-    return container;
-  }
 }
 
 export class Ecosia extends SearchingEngine {
@@ -56,16 +62,6 @@ export class Ecosia extends SearchingEngine {
     const searchURL = new URL(window.location.href);
     const query = searchURL.searchParams.get('q');
     return query;
-  }
-
-  gotElement(): Element {
-    const container = document.createElement('article');
-    const asideElement = document.querySelector(
-      '.layout__content .web .sidebar',
-    );
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-
-    return container;
   }
 }
 
@@ -80,16 +76,6 @@ export class Bing extends SearchingEngine {
     const query = searchURL.searchParams.get('q');
     return query;
   }
-
-  gotElement(): Element {
-    const container = document.createElement('li');
-    const asideElement = document.querySelector('#b_context');
-    console.log(asideElement);
-    container.className = 'b_ans';
-
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-    return container;
-  }
 }
 
 export class DuckDuckGo extends SearchingEngine {
@@ -103,16 +89,6 @@ export class DuckDuckGo extends SearchingEngine {
     const query = searchURL.searchParams.get('q');
     return query;
   }
-
-  gotElement(): Element {
-    const container = document.createElement('div');
-    const asideElement = document.getElementsByClassName('js-react-sidebar')[0];
-
-    container.style.marginLeft = '8px';
-
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-    return container;
-  }
 }
 
 export class Yandex extends SearchingEngine {
@@ -125,14 +101,6 @@ export class Yandex extends SearchingEngine {
     const searchURL = new URL(window.location.href);
     const query = searchURL.searchParams.get('text');
     return query;
-  }
-
-  gotElement(): Element {
-    const container = document.createElement('div');
-    const asideElement = document.querySelector('#search-result-aside');
-
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-    return container;
   }
 }
 
@@ -162,14 +130,6 @@ export class SearX extends SearchingEngine {
 
     return query;
   }
-
-  gotElement(): Element {
-    const container = document.createElement('div');
-    const asideElement = document.getElementById('sidebar');
-
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-    return container;
-  }
 }
 
 export class Baidu extends SearchingEngine {
@@ -184,13 +144,6 @@ export class Baidu extends SearchingEngine {
     const query = searchUrl.searchParams.get('wd');
 
     return query;
-  }
-
-  gotElement(): Element {
-    const container = document.createElement('div');
-    const asideElement = document.querySelector('#con-ar');
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-    return container;
   }
 
   reload(callback: Function): null {
@@ -223,14 +176,6 @@ export class Kagi extends SearchingEngine {
 
     return query;
   }
-
-  gotElement(): Element {
-    const container = document.createElement('div');
-    const asideElement = document.querySelector('div.right-content-box');
-
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-    return container;
-  }
 }
 export class Startpage extends SearchingEngine {
   isMatch(): boolean {
@@ -241,16 +186,6 @@ export class Startpage extends SearchingEngine {
   getQuery(): string | null {
     const query = document.querySelector('#q')?.getAttribute('value') || null;
     return query;
-  }
-
-  gotElement(): Element {
-    const container = document.createElement('div');
-    const asideElement = document.querySelector(
-      'div.layout-web__sidebar.layout-web__sidebar--web',
-    );
-
-    asideElement!.insertBefore(container, asideElement!.firstChild);
-    return container;
   }
 }
 
