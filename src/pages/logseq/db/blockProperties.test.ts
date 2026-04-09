@@ -33,6 +33,51 @@ describe('normalizeProperties', () => {
     expect(result[0].name).toBe('Owned');
   });
 
+  test('keeps DB-graph user properties and drops sibling system keys', () => {
+    // Real shape captured from logseq.Editor.getBlockProperties on a
+    // Logseq 2.x DB graph for a "Stolen Realm" block under "Videogames".
+    const result = normalizeProperties({
+      ':user.property/Players-NSC8mdun': [
+        'Single-player',
+        'Shared/Split-Screen Co-op',
+        'Online Co-op',
+      ],
+      ':logseq.property.embedding/hnsw-label-updated-at': 0,
+      ':block/tags': ['videogame'],
+      ':user.property/Videogametags-vMFHhjGd': [
+        'RPG',
+        'Adventure',
+        'Turn-based',
+        'Action',
+        'Strategy',
+      ],
+    });
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.name)).toEqual(['Players', 'Videogametags']);
+    expect(result[0].values).toEqual([
+      'Single-player',
+      'Shared/Split-Screen Co-op',
+      'Online Co-op',
+    ]);
+    expect(result[1].values).toEqual([
+      'RPG',
+      'Adventure',
+      'Turn-based',
+      'Action',
+      'Strategy',
+    ]);
+  });
+
+  test('strips the trailing 8-char disambiguation hash from user properties', () => {
+    const result = normalizeProperties({
+      ':user.property/rating-abcd1234': 5,
+      ':user.property/release-status-NSC8mdun': 'Released',
+    });
+    expect(result.map((p) => p.name)).toEqual(['Rating', 'Release status']);
+    expect(result[0].values).toEqual(['5']);
+    expect(result[1].values).toEqual(['Released']);
+  });
+
   test('humanizes hyphenated and underscored keys', () => {
     const result = normalizeProperties({
       'release-status': 'Empty',

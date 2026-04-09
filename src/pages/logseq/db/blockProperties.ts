@@ -20,17 +20,41 @@ const SYSTEM_KEYS = new Set([
 
 // Any key carrying one of these prefixes is a Logseq-internal namespace
 // (Datascript entity attributes, built-in property types) and is always
-// dropped.
-const SYSTEM_PREFIXES = ['block/', 'logseq.', ':logseq.', ':block/', ':'];
+// dropped. We intentionally do NOT include a bare `:` here: Logseq DB
+// graphs namespace *user* properties under `:user.property/…` and those
+// must survive the filter.
+const SYSTEM_PREFIXES = [
+  'block/',
+  ':block/',
+  'logseq.',
+  ':logseq.',
+];
+
+// Logseq 2.x DB graphs store user-authored properties under this
+// namespace, with an 8-character per-property disambiguation hash
+// appended to the name (e.g. `:user.property/Players-NSC8mdun`).
+const USER_PROPERTY_PREFIX = ':user.property/';
+const USER_PROPERTY_HASH_RE = /-[A-Za-z0-9]{8}$/;
 
 const isSystemKey = (key: string): boolean => {
   if (SYSTEM_KEYS.has(key)) return true;
+  // User properties on DB graphs always look like `:user.property/…`
+  // and must not be treated as system keys even though they carry the
+  // `:` namespace marker that other entity attributes use.
+  if (key.startsWith(USER_PROPERTY_PREFIX)) return false;
   return SYSTEM_PREFIXES.some((prefix) => key.startsWith(prefix));
 };
 
 const humanize = (key: string): string => {
-  const spaced = key.replace(/[-_]+/g, ' ').trim();
-  if (!spaced) return key;
+  // Strip the `:user.property/` namespace and the trailing disambiguation
+  // hash so `:user.property/Videogametags-vMFHhjGd` renders as
+  // `Videogametags` — the closest we can get to what the user typed in
+  // Logseq without an extra per-property entity lookup.
+  const bareKey = key.startsWith(USER_PROPERTY_PREFIX)
+    ? key.slice(USER_PROPERTY_PREFIX.length).replace(USER_PROPERTY_HASH_RE, '')
+    : key;
+  const spaced = bareKey.replace(/[-_]+/g, ' ').trim();
+  if (!spaced) return bareKey;
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 };
 
