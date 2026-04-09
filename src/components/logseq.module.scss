@@ -100,13 +100,18 @@
 }
 
 .blockContentRoot {
-  @apply flex flex-row justify-between gap-2 flex-wrap items-center;
+  @apply flex flex-row gap-2 items-start;
 }
 
 .blockContent {
-  @apply grow flex flex-col items-start whitespace-pre-wrap text-sm prose-img:w-full prose-p:my-0 prose-img:my-1 self-start;
+  // min-w-0 is load-bearing: without it, the flex item's minimum
+  // width defaults to its content's min-content (~max paragraph
+  // width), which exceeds the remaining row space once the sidebar
+  // is narrow and pushes the whole paragraph to a new line below
+  // the bullet. Setting it to 0 lets the text wrap inline instead.
+  @apply grow min-w-0 flex flex-col items-start whitespace-pre-wrap text-sm prose-img:w-full prose-p:my-0 prose-img:my-1;
   * {
-    @apply m-0 break-all text-sm;
+    @apply m-0 break-words text-sm;
   }
   p {
     @apply m-0;
