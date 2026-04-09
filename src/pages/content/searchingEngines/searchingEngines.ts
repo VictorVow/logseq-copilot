@@ -189,6 +189,31 @@ export class Startpage extends SearchingEngine {
   }
 }
 
+/**
+ * Catch-all fallback so the sidebar appears on any website, not just
+ * supported search engines. Must be registered LAST in `searchEngins`
+ * because `getEngine()` returns the first matching engine — real
+ * search engines still take priority and use their URL-based query
+ * extraction.
+ *
+ * Uses `document.title` as the search query, falling back to the
+ * hostname if the page has no title. This lets Logseq show related
+ * notes for "the page you're currently reading" without requiring any
+ * user input.
+ */
+export class GenericPage extends SearchingEngine {
+  isMatch(): boolean {
+    return true;
+  }
+
+  getQuery(): string | null {
+    const title = (document.title || '').trim();
+    if (title) return title;
+    const host = window.location.hostname;
+    return host || null;
+  }
+}
+
 const searchEngins = [
   new Google(),
   new Ecosia(),
@@ -199,6 +224,7 @@ const searchEngins = [
   new Kagi(),
   new Baidu(),
   new Startpage(),
+  new GenericPage(),
 ];
 
 export default searchEngins;

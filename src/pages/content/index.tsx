@@ -9,6 +9,7 @@ import searchEngines, {
   Bing,
   Ecosia,
   DuckDuckGo,
+  GenericPage,
   Google,
   Kagi,
   SearX,
@@ -42,7 +43,8 @@ async function run(
     | SearX
     | Baidu
     | Kagi
-    | Startpage,
+    | Startpage
+    | GenericPage,
 ) {
   console.debug('Logseq copliot', window.location.hostname);
 
