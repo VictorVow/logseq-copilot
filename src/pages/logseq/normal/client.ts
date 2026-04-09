@@ -46,7 +46,7 @@ export default class LogseqClient
   implements LogseqClientInterface
 {
   private getCurrentGraph = async (): Promise<Graph> => {
-    return await this.baseJson('logseq.getCurrentGraph', []);
+    return await this.baseJson('logseq.App.getCurrentGraph', []);
   };
 
   public appendBlock = async (page, content) => {
@@ -109,13 +109,13 @@ export default class LogseqClient
   };
 
   public isDBGraph = async () => {
-    return await this.baseJson('check_current_is_db_graph', []);
+    return await this.baseJson('logseq.App.checkCurrentIsDbGraph', []);
   };
 
   private showMsgInternal = async (
     message: string,
   ): Promise<LogseqResponseType<null>> => {
-    await this.baseFetch('logseq.showMsg', [message]);
+    await this.baseFetch('logseq.App.showMsg', [message]);
     return {
       status: 200,
       msg: 'success',
