@@ -68,13 +68,30 @@ function getEngine() {
   }
 }
 
-const searchEngine = getEngine();
-
-if (searchEngine) {
+const initPlugin = () => {
+  const searchEngine = getEngine();
+  if (!searchEngine) return;
   setTimeout(() => run(searchEngine), 200);
   if (searchEngine.reload) {
     searchEngine.reload(() => run(searchEngine));
   }
+};
+
+// Defer initialization until the tab is actually being viewed, so
+// background tabs don't fire a Logseq search on every page load or
+// extension reload. Firefox re-injects content scripts into all
+// matching tabs when a temporary addon reloads — without this gate
+// every open tab would hit the API regardless of whether the user
+// is looking at it.
+if (document.visibilityState === 'visible') {
+  initPlugin();
+} else {
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible') return;
+    document.removeEventListener('visibilitychange', onVisible);
+    initPlugin();
+  };
+  document.addEventListener('visibilitychange', onVisible);
 }
 
 getLogseqCopliotConfig().then(({ enableClipNoteFloatButton }) => {
