@@ -18,8 +18,17 @@
   @apply divide-y divide-x-0 divide-dashed;
 }
 
-.toBlock {
-  @apply no-underline hover:underline min-w-fit;
+.blockBullet {
+  @apply no-underline flex-none text-center self-start;
+  width: 16px;
+  line-height: 20px;
+  font-size: 1rem;
+  color: rgba(120, 120, 120, 0.9);
+
+  &:hover {
+    color: var(--markerStatusHoverColor, black);
+    @apply no-underline;
+  }
 }
 
 .logseqPageLink {
@@ -80,10 +89,9 @@
 }
 
 .blockContentListItem {
-  @apply list-outside ml-4;
+  @apply list-none ml-2;
   min-height: 20px;
   line-height: 20px;
-  // padding: 1px 3px;
   border-radius: 3px;
 }
 

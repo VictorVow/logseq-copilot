@@ -24,15 +24,25 @@ type LogseqBlockItemProps = {
   isRoot?: boolean;
 };
 
-const toBlockLink = (graph: string, block: LogseqBlockType) => {
-  if (!block.uuid) return <></>;
+// Clickable bullet that replaces both the browser's default list
+// marker and the old "To Block" text link. Uses a Unicode bullet as
+// the visible glyph so sizing and color follow the parent font. When
+// block.uuid is missing (shouldn't happen in practice, but guards
+// against half-built fixtures) it renders a non-interactive spacer so
+// the flex layout stays stable.
+const blockBulletLink = (graph: string, block: LogseqBlockType) => {
+  const bullet = '\u2022';
+  if (!block.uuid) {
+    return <span className={styles.blockBullet}>{bullet}</span>;
+  }
   return (
     <a
-      className={styles.toBlock}
+      className={styles.blockBullet}
       href={`logseq://graph/${graph}?block-id=${block.uuid}`}
+      title="Open block in Logseq"
+      aria-label="Open block in Logseq"
     >
-      <span className={'tie tie-block'}></span>
-      To Block
+      {bullet}
     </a>
   );
 };
@@ -195,12 +205,12 @@ const LogseqBlockItem = ({
   return (
     <li className={styles.blockContentListItem}>
       <div className={styles.blockContentRoot}>
+        {blockBulletLink(graph, block)}
         {block.marker != null && markerRender(block.marker)}
         <div
           className={styles.blockContent}
           dangerouslySetInnerHTML={{ __html: block.html }}
         />
-        {toBlockLink(graph, block)}
       </div>
       <LogseqProperties properties={block.properties} />
       {showToggleButton && (
