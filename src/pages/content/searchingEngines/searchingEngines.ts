@@ -1,3 +1,5 @@
+import { cleanUrl } from '@/utils';
+
 abstract class SearchingEngine {
   isMatch(): boolean {
     return false;
@@ -196,10 +198,11 @@ export class Startpage extends SearchingEngine {
  * search engines still take priority and use their URL-based query
  * extraction.
  *
- * Uses `document.title` as the search query, falling back to the
- * hostname if the page has no title. This lets Logseq show related
- * notes for "the page you're currently reading" without requiring any
- * user input.
+ * Uses the current page's URL as the search query, with tracking
+ * parameters (utm_*, fbclid, gclid, igsh, ...) and the hash fragment
+ * stripped via `cleanUrl`. URLs match well against whatever the user
+ * has stored in Logseq (pasted links, sources on notes, etc.) once
+ * the tracking cruft is removed.
  */
 export class GenericPage extends SearchingEngine {
   isMatch(): boolean {
@@ -207,10 +210,7 @@ export class GenericPage extends SearchingEngine {
   }
 
   getQuery(): string | null {
-    const title = (document.title || '').trim();
-    if (title) return title;
-    const host = window.location.hostname;
-    return host || null;
+    return cleanUrl(window.location.href) || null;
   }
 }
 
