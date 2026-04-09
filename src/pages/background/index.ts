@@ -14,6 +14,18 @@ browser.runtime.onConnect.addListener((port) => {
         const searchRes = await logseqService.search(msg.query);
         console.debug("search result", searchRes)
         port.postMessage(searchRes);
+
+        // Update the toolbar badge using the result of *this* search
+        // so we don't need a separate tabs.onActivated badgeSearch
+        // path (which would fire a duplicate logseq.App.search for
+        // every tab switch).
+        const tabId = port.sender?.tab?.id;
+        if (tabId !== undefined) {
+          const resp = searchRes.response;
+          const count =
+            (resp?.blocks?.length ?? 0) + (resp?.pages?.length ?? 0);
+          await setExtensionBadge(count > 0 ? String(count) : '', tabId);
+        }
       });
 
       promise.catch((err) => console.error(err));
@@ -101,27 +113,22 @@ const quickCapture = async (data: string) => {
   debounceBadgeSearch(activeTab.url, activeTab.id!);
 };
 
-browser.tabs.onActivated.addListener((activeInfo) => {
-  const promise = new Promise(async () => {
-    const tab = await browser.tabs.get(activeInfo.tabId);
-    await debounceBadgeSearch(tab.url, activeInfo.tabId);
-  });
-  promise.catch((err) => console.error(err));
-});
-
+// Clear the badge when a tab navigates to a non-web URL (about:,
+// moz-extension:, file:, etc.) so stale counts from a previous page
+// don't linger. For web URLs the content script fires a query
+// through the port connection and `onConnect` sets the badge from
+// that result — no duplicate search needed here.
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (tab.active && changeInfo.status === 'complete') {
-    const promise = new Promise(async () => {
-      await debounceBadgeSearch(tab.url, tabId);
-    });
-    promise.catch((err) => console.error(err));
+  if (changeInfo.status !== 'complete') return;
+  if (!isWebUrl(tab.url)) {
+    setExtensionBadge('', tabId).catch((err) => console.error(err));
   }
 });
 
+// Fresh lookup used only after a QuickCapture clip, so the badge
+// reflects the new block count for the current page. Not wired to
+// tab events.
 const badgeSearch = async (url: string | undefined, tabId: number) => {
-  // Skip extension/about/file pages so we don't hit Logseq (and fire a
-  // cascade of getPage calls) when the user opens the options page,
-  // popup, or any other non-web URL.
   if (!isWebUrl(url)) {
     await setExtensionBadge('', tabId);
     return;
