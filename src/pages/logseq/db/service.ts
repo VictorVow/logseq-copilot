@@ -27,21 +27,25 @@ export default class LogseqDBService implements LogseqServiceInterface {
       graph: graphName,
     };
 
+    // Logseq 2.x search returns a flat `blocks` array where page results
+    // are flagged with `page?: true` and block results with `page?: null`.
+    // `uuid` is the top-level user-facing uuid; there is no nested
+    // `block/uuid` wrapper like older Datascript-style responses had.
     response.pages = await Promise.all(
       resp.blocks
         .filter((item) => item['page?'] === true)
         .map(async (item) => {
           return await this.client.getPage({
-            uuid: item['block/uuid']['uuid'],
+            uuid: item.uuid,
           });
         }),
     );
     response.blocks = await Promise.all(
       resp.blocks
-        .filter((item) => item['page?'] === false)
+        .filter((item) => !item['page?'])
         .map(
           async (item) =>
-            await this.getBlock(item['block/uuid']['uuid'], graphName, query),
+            await this.getBlock(item.uuid, graphName, query),
         ),
     );
 
