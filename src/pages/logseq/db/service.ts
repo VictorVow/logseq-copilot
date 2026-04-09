@@ -1,4 +1,4 @@
-import { LogseqBlockType } from '../../../types/logseqBlock';
+import { LogseqBlockType, LogseqPageIdenity } from '../../../types/logseqBlock';
 import LogseqClient from './client';
 import { renderBlock } from '../tool';
 import { LogseqServiceInterface } from '../interfaces';
@@ -17,12 +17,17 @@ export default class LogseqDBService implements LogseqServiceInterface {
   }
 
   public async getVersion() {
-    return (await this.client.getVersion()).version;
+    return ((await this.client.getVersion()) as any).version;
   }
 
   private async searchGraph(graphName: string, query: string) {
     const resp = await this.client.search(query);
-    const response = {
+    const response: {
+      blocks: LogseqBlockType[];
+      pages: LogseqPageIdenity[];
+      count: number;
+      graph: string;
+    } = {
       blocks: [],
       pages: [],
       count: 0,
@@ -33,8 +38,9 @@ export default class LogseqDBService implements LogseqServiceInterface {
     // are flagged with `page?: true` and block results with `page?: null`.
     // `uuid` is the top-level user-facing uuid; there is no nested
     // `block/uuid` wrapper like older Datascript-style responses had.
-    const pageHits = resp.blocks.filter((item) => item['page?'] === true);
-    const blockHits = resp.blocks.filter((item) => !item['page?']);
+    const rawHits = resp.blocks as any[];
+    const pageHits = rawHits.filter((item) => item['page?'] === true);
+    const blockHits = rawHits.filter((item) => !item['page?']);
 
     // Memoize getPage within this one search so multiple blocks on
     // the same parent page only trigger a single logseq.Editor.getPage
@@ -81,7 +87,9 @@ export default class LogseqDBService implements LogseqServiceInterface {
         return renderBlock(block, graphName, query);
       }),
     );
-    response.blocks = fetchedBlocks.filter((block) => block != null);
+    response.blocks = fetchedBlocks.filter(
+      (block): block is LogseqBlockType => block != null,
+    );
 
     return response;
   }
@@ -167,7 +175,7 @@ export default class LogseqDBService implements LogseqServiceInterface {
 
     const result = await this.client.updateBlock(block);
     console.debug(result);
-    if (Object.hasOwnProperty(result, 'error')) {
+    if (Object.prototype.hasOwnProperty.call(result, 'error')) {
       return {
         type: 'change-block-marker-result',
         uuid: uuid,

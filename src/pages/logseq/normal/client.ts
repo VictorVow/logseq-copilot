@@ -49,7 +49,7 @@ export default class LogseqClient
     return await this.baseJson('logseq.App.getCurrentGraph', []);
   };
 
-  public appendBlock = async (page, content) => {
+  public appendBlock = async (page: string, content: string) => {
     const resp = await this.baseJson('logseq.Editor.appendBlockInPage', [
       page,
       content,

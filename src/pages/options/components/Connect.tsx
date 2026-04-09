@@ -28,20 +28,20 @@ export const LogseqConnectOptions = () => {
   const [logseqConfig, setLogseqConfig] = React.useState<LogseqCopliotConfig>();
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLogseqConfig({
-      ...logseqConfig,
+    setLogseqConfig((prev) => ({
+      ...(prev as LogseqCopliotConfig),
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   const changeLogseqPort = (port: string) => {
     if (port === '' || parseInt(port) < 0) {
       port = '0'
     }
-    setLogseqConfig({
-      ...logseqConfig,
+    setLogseqConfig((prev) => ({
+      ...(prev as LogseqCopliotConfig),
       logseqPort: parseInt(port),
-    });
+    }));
   }
 
   const triggerShowToken = () => setShowToken(!showToken);
@@ -64,7 +64,7 @@ export const LogseqConnectOptions = () => {
       if (await checkConnection()) {
         const service = await getLogseqService();
         const graph = await service.getGraph();
-        window.location = `logseq://graph/${graph!.name}`;
+        window.location.href = `logseq://graph/${graph!.name}`;
       }
     });
     promise.then(console.log).catch(console.error);
@@ -129,11 +129,10 @@ export const LogseqConnectOptions = () => {
           max={65535}
           min={1}
           name="logseqPort"
-          placeholder="Logseq Host"
           onChange={changeLogseqPort}
           value={logseqConfig?.logseqPort}
         >
-          <NumberInputField />
+          <NumberInputField placeholder="Logseq Host" />
         </NumberInput>
         <Text fontSize="sm">Authorization Token</Text>
         <InputGroup gridColumn={'1 / span 3'}>

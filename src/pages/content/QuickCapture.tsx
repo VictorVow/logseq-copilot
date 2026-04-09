@@ -7,7 +7,8 @@ import scssStyles from './index.module.scss';
 
 const logseqCopilotPopupId = 'logseq-copilot-popup';
 export const zIndex = '2147483647';
-const highlights = CSS.highlights;
+const highlights = (CSS as unknown as { highlights: HighlightRegistry })
+  .highlights;
 
 const capture = () => {
   const selection = getSelection();
@@ -38,7 +39,7 @@ const setHighlight = (range: Range) => {
       highlights.set('copilot-highlight', new Highlight())
     }
     const highlight = highlights.get('copilot-highlight');
-    highlight.add(range);
+    highlight?.add(range);
   } catch (error) {
     console.debug("platform not support highlight function")
   }
@@ -65,7 +66,11 @@ const QuickCapture = () => {
   const clicked = (event: MouseEvent) => {
     const selection = getSelection();
     const haveSelection = selection && selection.toString().trim().length > 0;
-    const isButton = event.target && event.target.className && event.target.className.includes("quickCapture")
+    const target = event.target as Element | null;
+    const isButton =
+      target &&
+      typeof target.className === 'string' &&
+      target.className.includes('quickCapture');
     if (isButton) {
       if (event.type === "mouseup") {
         setShow(false);

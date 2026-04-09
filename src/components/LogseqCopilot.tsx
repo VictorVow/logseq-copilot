@@ -4,18 +4,28 @@ import Browser from 'webextension-polyfill';
 import { LogseqBlock } from './LogseqBlock';
 import LogseqPageLink from './LogseqPage';
 import { LogseqProperties } from './LogseqProperties';
+import type { LogseqBlockType, LogseqPageIdenity } from '@/types/logseqBlock';
 
-const LogseqCopilot = ({ graph, pages, blocks }) => {
+type LogseqCopilotProps = {
+  graph: string;
+  pages: LogseqPageIdenity[];
+  blocks: LogseqBlockType[];
+};
+
+const LogseqCopilot = ({ graph, pages, blocks }: LogseqCopilotProps) => {
   const goOptionPage = () => {
     Browser.runtime.sendMessage({ type: 'open-options' });
   };
 
-  const groupedBlocks = blocks.reduce((groups, item) => {
-    const group = (groups[item.page.name] || []);
-    group.push(item);
-    groups[item.page.name] = group;
-    return groups;
-  }, {});
+  const groupedBlocks = blocks.reduce<Record<string, LogseqBlockType[]>>(
+    (groups, item) => {
+      const group = groups[item.page.name] || [];
+      group.push(item);
+      groups[item.page.name] = group;
+      return groups;
+    },
+    {},
+  );
 
   const count = () => {
     return pages.length + blocks.length;

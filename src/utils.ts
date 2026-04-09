@@ -91,11 +91,14 @@ export const cleanUrl = (url: string): string => {
   return parsed.toString();
 };
 
-function cleanAttribute(attribute: string) {
+function cleanAttribute(attribute: string | null) {
   return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : '';
 }
 
-function linkProcess(src: string) {
+function linkProcess(src: string | null) {
+  if (!src) {
+    return '';
+  }
   if (src.startsWith('/')) {
     return window.location.origin + src;
   } else if (src.startsWith('http')) {
@@ -121,7 +124,7 @@ export const buildTurndownService = () => {
   turndownService.addRule('image-add-black', {
     filter: 'img',
 
-    replacement: function (content, node) {
+    replacement: function (content: string, node: HTMLElement) {
       const alt = cleanAttribute(node.getAttribute('alt'));
       const src = node.getAttribute('src') || '';
       return src ? ` ![${alt}](${linkProcess(src)}) ` : '';
@@ -131,7 +134,7 @@ export const buildTurndownService = () => {
   turndownService.addRule('p-logseq', {
     filter: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
 
-    replacement: function (content, node) {
+    replacement: function (content: string, node: HTMLElement) {
       const hLevel = Number(node.nodeName.charAt(1));
       if (hLevel === 1) return '\n\n**' + content + '**\n\n';
       return '\n\n' + content + '\n\n';
@@ -141,7 +144,7 @@ export const buildTurndownService = () => {
   turndownService.addRule('a-logseq', {
     filter: 'a',
 
-    replacement: function (content, node) {
+    replacement: function (content: string, node: HTMLElement) {
       const href = node.getAttribute('href');
       return `[${content}](${linkProcess(href)})`;
     },

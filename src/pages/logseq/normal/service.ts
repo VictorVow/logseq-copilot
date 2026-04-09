@@ -1,4 +1,4 @@
-import { LogseqBlockType } from '../../../types/logseqBlock';
+import { LogseqBlockType, LogseqPageIdenity } from '../../../types/logseqBlock';
 import LogseqClient from './client';
 import { renderBlock } from '../tool';
 import { LogseqServiceInterface } from '../interfaces';
@@ -15,27 +15,37 @@ export default class LogseqService implements LogseqServiceInterface {
   }
 
   public async getVersion() {
-    return (await this.client.getVersion()).version;
+    return ((await this.client.getVersion()) as any).version;
   }
 
   private async searchGraph(graphName: string, query: string) {
     const result = await this.client.search(query);
-    result.blocks = await Promise.all(
+    const response: {
+      blocks: LogseqBlockType[];
+      pages: LogseqPageIdenity[];
+      count: number;
+      graph: string;
+    } = {
+      blocks: [],
+      pages: [],
+      count: 0,
+      graph: graphName,
+    };
+    response.blocks = await Promise.all(
       result.blocks.map(async (block) => {
         return await this.getBlock(block['block/uuid'], graphName, query);
       }),
     );
-    result.pages = await Promise.all(
+    response.pages = await Promise.all(
       result.pages.map(async (page: string) => {
         return await this.client.getPage({
           name: page,
-        });
+        } as LogseqPageIdenity);
       }),
     );
 
-    result.count = result.blocks.length + result.pages.length;
-    result.graph = graphName;
-    return result;
+    response.count = response.blocks.length + response.pages.length;
+    return response;
   }
 
   public async search(query: string) {
@@ -126,7 +136,7 @@ export default class LogseqService implements LogseqServiceInterface {
 
     const result = await this.client.updateBlock(block);
     console.debug(result);
-    if (Object.hasOwnProperty(result, 'error')) {
+    if (Object.prototype.hasOwnProperty.call(result, 'error')) {
       return {
         type: 'change-block-marker-result',
         uuid: uuid,

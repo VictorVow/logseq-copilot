@@ -95,7 +95,7 @@ export const LogseqBlock = ({ graph, blocks }: LogseqBlockProps) => {
     );
   };
 
-  const toBlock = (block) => {
+  const toBlock = (block: LogseqBlockType) => {
     if (!block.uuid) {
       return <></>
     }

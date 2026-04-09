@@ -5,7 +5,6 @@ export interface LogseqClientInterface {
   getGraph(): any;
   appendBlock(page: string, content: string): any;
   getVersion(): any;
-  updateBlock(): any;
   getAllPages(): any;
   showMsg(message: string): any;
   getUserConfig(): any;

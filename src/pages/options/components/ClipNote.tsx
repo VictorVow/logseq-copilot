@@ -24,7 +24,7 @@ export const ClipNoteOptions = () => {
 
   const [logseqConfig, setLogseqConfig] = React.useState<LogseqCopliotConfig>();
 
-  const [clipShortCut, setClipShortCut] = React.useState();
+  const [clipShortCut, setClipShortCut] = React.useState<string | undefined>();
 
   useEffect(() => {
     if (!init) {
@@ -44,25 +44,28 @@ export const ClipNoteOptions = () => {
     }
   });
 
-  const updateConfig = (key: string, value: string) => {
-    setLogseqConfig({
-      ...logseqConfig,
+  const updateConfig = (key: string, value: string | boolean) => {
+    setLogseqConfig((prev) => ({
+      ...(prev as LogseqCopliotConfig),
       [key]: value,
-    });
+    }));
     saveLogseqCopliotConfig({
       [key]: value,
     });
   };
 
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    updateConfig(e.target.name, e.target.value || e.target.checked);
+  const onChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const target = e.target as HTMLInputElement;
+    updateConfig(target.name, target.value || target.checked);
   };
 
   const onClipNoteLocationSelect = (value: string) => {
     updateConfig('clipNoteLocation', value);
   };
 
-  const updateCustomPage = (event) => {
+  const updateCustomPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     updateConfig('clipNoteCustomPage', event.target.value);
   };
 
