@@ -2,7 +2,12 @@ import { LogseqBlockType, LogseqPageIdenity } from '../../../types/logseqBlock';
 import LogseqClient from './client';
 import { renderBlock } from '../tool';
 import { LogseqServiceInterface } from '../interfaces';
-import { isPureBlockReference } from './blockReference';
+import {
+  isPureBlockReference,
+  collectBlockReferenceUuids,
+  resolveBlockReferences,
+  blockReferenceLabel,
+} from './blockReference';
 import { normalizeProperties } from './blockProperties';
 import { normalizeBlockTree } from './blockTree';
 
@@ -19,6 +24,61 @@ export default class LogseqDBService implements LogseqServiceInterface {
 
   public async getVersion() {
     return ((await this.client.getVersion()) as any).version;
+  }
+
+  // Fetch each uuid referenced by `((uuid))` / `[[uuid]]` in parallel
+  // and build a lowercase-keyed label map suitable for
+  // `resolveBlockReferences`. Missing or unreachable targets are
+  // silently dropped so the caller's resolver falls through to the raw
+  // ref for those entries.
+  private async buildBlockRefMap(
+    uuids: Iterable<string>,
+  ): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    const uniqueUuids = new Set<string>();
+    for (const uuid of uuids) {
+      if (typeof uuid === 'string' && uuid.length > 0) {
+        uniqueUuids.add(uuid.toLowerCase());
+      }
+    }
+    if (uniqueUuids.size === 0) return map;
+    await Promise.all(
+      Array.from(uniqueUuids).map(async (uuid) => {
+        try {
+          const refBlock = await this.client.getBlockViaUuid(uuid, {
+            includeChildren: false,
+          });
+          if (refBlock && typeof refBlock.content === 'string') {
+            const label = blockReferenceLabel(refBlock.content);
+            if (label.length > 0) {
+              map.set(uuid, label);
+            }
+          }
+        } catch {
+          // Unknown or unreachable target -- leave it out of the map.
+        }
+      }),
+    );
+    return map;
+  }
+
+  // Collect every uuid referenced by `((uuid))` / `[[uuid]]` inside the
+  // content of a raw Logseq block tree. Walks children recursively so a
+  // single search of the full subtree yields the full fan-out for a
+  // single `buildBlockRefMap` call.
+  private collectTreeBlockReferenceUuids(rawNodes: any[]): Set<string> {
+    const uuids = new Set<string>();
+    const visit = (node: any) => {
+      if (!node || Array.isArray(node)) return;
+      for (const uuid of collectBlockReferenceUuids(node.content)) {
+        uuids.add(uuid);
+      }
+      if (Array.isArray(node.children)) {
+        for (const child of node.children) visit(child);
+      }
+    };
+    for (const node of rawNodes) visit(node);
+    return uuids;
   }
 
   private async searchGraph(graphName: string, query: string) {
@@ -70,21 +130,48 @@ export default class LogseqDBService implements LogseqServiceInterface {
       }),
     );
 
-    const fetchedBlocks = await Promise.all(
+    // Phase 1: fetch every root hit + its properties in parallel. We
+    // split the pipeline here (rather than fusing fetch->render in a
+    // single map) so Phase 2 can gather all inline block references
+    // across every hit and fan out one deduped fetch per unique
+    // referent instead of doing it per-block.
+    const rawHitsFetched = await Promise.all(
       blockHits.map(async (item: any) => {
-        // includeChildren: true lets us probe whether the block has
-        // descendants so the sidebar can decide whether to render the
-        // "Show child blocks" button. We discard the children tree here
-        // and re-fetch it on demand via getBlockChildren() so the port
-        // response stays small.
         const [block, rawProps] = await Promise.all([
+          // includeChildren: true lets us probe whether the block has
+          // descendants so the sidebar can decide whether to render
+          // the "Show child blocks" button. We discard the children
+          // tree below and re-fetch it on demand via getBlockChildren()
+          // so the port response stays small.
           this.client.getBlockViaUuid(item.uuid, { includeChildren: true }),
           this.client.getBlockProperties(item.uuid).catch(() => null),
         ]);
-        // Skip blocks whose content is only a reference to another block --
-        // the referenced block is already a search hit on its own, so
-        // rendering both produces a duplicate result that shows up as a
-        // bare UUID in the sidebar.
+        return { block, rawProps };
+      }),
+    );
+
+    // Phase 2: gather the full set of `((uuid))` / `[[uuid]]` referents
+    // from every root hit's content, then fetch them all in parallel.
+    // Root hits discard their children tree so we only need to scan
+    // the root content itself; the children path resolves its own refs
+    // on demand in getBlockChildren().
+    const rootRefUuids = new Set<string>();
+    for (const { block } of rawHitsFetched) {
+      if (block && typeof block.content === 'string') {
+        for (const uuid of collectBlockReferenceUuids(block.content)) {
+          rootRefUuids.add(uuid);
+        }
+      }
+    }
+    const rootRefMap = await this.buildBlockRefMap(rootRefUuids);
+
+    // Phase 3: normalize, substitute references, and render each hit.
+    const fetchedBlocks = await Promise.all(
+      rawHitsFetched.map(async ({ block, rawProps }) => {
+        // Skip blocks whose content is only a reference to another
+        // block -- the referenced block is already a search hit on its
+        // own, so rendering both produces a duplicate result that shows
+        // up as a bare UUID in the sidebar.
         if (isPureBlockReference(block?.content)) {
           return null;
         }
@@ -93,6 +180,9 @@ export default class LogseqDBService implements LogseqServiceInterface {
         delete block.children;
         block.page = await getPageCached(block.page);
         block.properties = normalizeProperties(rawProps);
+        if (typeof block.content === 'string') {
+          block.content = resolveBlockReferences(block.content, rootRefMap);
+        }
         const rendered: LogseqBlockType = renderBlock(block, graphName, query);
         rendered.hasChildren = hasChildren;
         return rendered;
@@ -132,8 +222,10 @@ export default class LogseqDBService implements LogseqServiceInterface {
   // Fetch the descendants of a block on demand. Called from the
   // background worker in response to a "Show child blocks" click in the
   // sidebar. The returned tree is fully normalized -- collapsed subtrees
-  // pruned, pure block references dropped, hasChildren populated at
-  // every level -- so the caller can render it without further logic.
+  // pruned, pure block references dropped, inline `((uuid))` and
+  // `[[uuid]]` references resolved to their target's first line, and
+  // hasChildren populated at every level -- so the caller can render
+  // it without further logic.
   public async getBlockChildren(
     blockUuid: string,
     query?: string,
@@ -146,13 +238,27 @@ export default class LogseqDBService implements LogseqServiceInterface {
       return [];
     }
     const rawChildren = rawBlock.children;
+
+    // Walk the full subtree once up-front, gather every inline block
+    // reference uuid, and fetch them all in parallel. The resulting
+    // label map is then applied inside the render callback so every
+    // node in the tree sees its references replaced before marked
+    // turns the content into HTML. Logseq's plugin API doesn't resolve
+    // block-scope refs automatically, so without this step fetched
+    // children show as walls of raw UUIDs in the sidebar.
+    const refUuids = this.collectTreeBlockReferenceUuids(rawChildren);
+    const refMap = await this.buildBlockRefMap(refUuids);
+
     const rendered: LogseqBlockType[] = [];
     for (const rawChild of rawChildren) {
       // BlockUUIDTuple fallback shape: plain array, no content to render.
       if (Array.isArray(rawChild)) continue;
-      const child = normalizeBlockTree(rawChild, (node) =>
-        renderBlock(node, graph, query),
-      );
+      const child = normalizeBlockTree(rawChild, (node) => {
+        if (typeof node.content === 'string') {
+          node.content = resolveBlockReferences(node.content, refMap);
+        }
+        return renderBlock(node, graph, query);
+      });
       if (child) rendered.push(child);
     }
     return rendered;
