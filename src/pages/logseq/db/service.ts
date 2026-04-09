@@ -2,6 +2,7 @@ import { LogseqBlockType } from '../../../types/logseqBlock';
 import LogseqClient from './client';
 import { renderBlock } from '../tool';
 import { LogseqServiceInterface } from '../interfaces';
+import { isPureBlockReference } from './blockReference';
 
 export default class LogseqDBService implements LogseqServiceInterface {
   public client: LogseqClient = new LogseqClient();
@@ -54,15 +55,23 @@ export default class LogseqDBService implements LogseqServiceInterface {
       pageHits.map((item) => getPageCached({ uuid: item.uuid })),
     );
 
-    response.blocks = await Promise.all(
+    const fetchedBlocks = await Promise.all(
       blockHits.map(async (item) => {
         const block = await this.client.getBlockViaUuid(item.uuid, {
           includeChildren: false,
         });
+        // Skip blocks whose content is only a reference to another block --
+        // the referenced block is already a search hit on its own, so
+        // rendering both produces a duplicate result that shows up as a
+        // bare UUID in the sidebar.
+        if (isPureBlockReference(block?.content)) {
+          return null;
+        }
         block.page = await getPageCached(block.page);
         return renderBlock(block, graphName, query);
       }),
     );
+    response.blocks = fetchedBlocks.filter((block) => block != null);
 
     return response;
   }
