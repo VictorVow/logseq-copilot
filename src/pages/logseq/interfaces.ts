@@ -24,6 +24,11 @@ export interface LogseqServiceInterface {
     query?: string,
     includeChildren?: boolean,
   ): any;
+  // Deferred fetch of a block's descendant tree. Only implemented by the
+  // DB-graph service for now -- the background worker guards with a
+  // typeof check before calling, so file-graph search (which won't set
+  // `hasChildren` on its results) never triggers this path.
+  getBlockChildren?(uuid: string, query?: string): Promise<LogseqBlockType[]>;
   urlSearch(url: URL, opt?: { fuzzy: boolean }): any;
   showMsg(message: string): any;
   getVersion(): any;

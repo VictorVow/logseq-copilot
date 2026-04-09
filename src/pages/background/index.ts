@@ -48,6 +48,8 @@ browser.runtime.onMessage.addListener((msg, sender) => {
     openPage(msg.url);
   } else if (msg.type === 'change-block-marker') {
     changeBlockMarker(msg.uuid, msg.marker);
+  } else if (msg.type === 'get-block-children') {
+    getBlockChildren(msg.uuid, msg.query);
   } else {
     console.debug(msg);
   }
@@ -61,6 +63,44 @@ const changeBlockMarker = async (uuid: string, marker: string) => {
   const logseqService = await getLogseqService();
   const result = await logseqService.changeBlockMarker(uuid, marker);
   browser.tabs.sendMessage(tab.id!, result);
+};
+
+// Deferred fetch of a block's descendant tree, triggered by the "Show
+// child blocks" button in the sidebar. Posts a fire-and-forget result
+// message back to the tab (matching the changeBlockMarker pattern) that
+// the LogseqBlockItem component listens for. File-graph search results
+// never set `hasChildren: true` so the button is never rendered for
+// them; the typeof guard here is a defensive fallback for the case
+// where a file-graph service is somehow reached.
+const getBlockChildren = async (uuid: string, query?: string) => {
+  const tab = await getCurrentTab();
+  if (!tab) return;
+  const logseqService = await getLogseqService();
+  if (typeof logseqService.getBlockChildren !== 'function') {
+    browser.tabs.sendMessage(tab.id!, {
+      type: 'get-block-children-result',
+      uuid,
+      status: 'failed',
+      msg: 'Child-block fetching is only supported on Logseq DB graphs.',
+    });
+    return;
+  }
+  try {
+    const children = await logseqService.getBlockChildren(uuid, query);
+    browser.tabs.sendMessage(tab.id!, {
+      type: 'get-block-children-result',
+      uuid,
+      status: 'success',
+      children,
+    });
+  } catch (err: any) {
+    browser.tabs.sendMessage(tab.id!, {
+      type: 'get-block-children-result',
+      uuid,
+      status: 'failed',
+      msg: err?.message ?? String(err),
+    });
+  }
 };
 
 const getCurrentTab = async () => {

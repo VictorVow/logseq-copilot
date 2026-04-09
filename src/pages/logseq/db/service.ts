@@ -4,6 +4,7 @@ import { renderBlock } from '../tool';
 import { LogseqServiceInterface } from '../interfaces';
 import { isPureBlockReference } from './blockReference';
 import { normalizeProperties } from './blockProperties';
+import { normalizeBlockTree } from './blockTree';
 
 export default class LogseqDBService implements LogseqServiceInterface {
   public client: LogseqClient = new LogseqClient();
@@ -71,8 +72,13 @@ export default class LogseqDBService implements LogseqServiceInterface {
 
     const fetchedBlocks = await Promise.all(
       blockHits.map(async (item: any) => {
+        // includeChildren: true lets us probe whether the block has
+        // descendants so the sidebar can decide whether to render the
+        // "Show child blocks" button. We discard the children tree here
+        // and re-fetch it on demand via getBlockChildren() so the port
+        // response stays small.
         const [block, rawProps] = await Promise.all([
-          this.client.getBlockViaUuid(item.uuid, { includeChildren: false }),
+          this.client.getBlockViaUuid(item.uuid, { includeChildren: true }),
           this.client.getBlockProperties(item.uuid).catch(() => null),
         ]);
         // Skip blocks whose content is only a reference to another block --
@@ -82,9 +88,14 @@ export default class LogseqDBService implements LogseqServiceInterface {
         if (isPureBlockReference(block?.content)) {
           return null;
         }
+        const hasChildren =
+          Array.isArray(block?.children) && block.children.length > 0;
+        delete block.children;
         block.page = await getPageCached(block.page);
         block.properties = normalizeProperties(rawProps);
-        return renderBlock(block, graphName, query);
+        const rendered: LogseqBlockType = renderBlock(block, graphName, query);
+        rendered.hasChildren = hasChildren;
+        return rendered;
       }),
     );
     response.blocks = fetchedBlocks.filter(
@@ -116,6 +127,35 @@ export default class LogseqDBService implements LogseqServiceInterface {
     });
     block.page = await this.client.getPage(block.page);
     return renderBlock(block, graph, query);
+  }
+
+  // Fetch the descendants of a block on demand. Called from the
+  // background worker in response to a "Show child blocks" click in the
+  // sidebar. The returned tree is fully normalized -- collapsed subtrees
+  // pruned, pure block references dropped, hasChildren populated at
+  // every level -- so the caller can render it without further logic.
+  public async getBlockChildren(
+    blockUuid: string,
+    query?: string,
+  ): Promise<LogseqBlockType[]> {
+    const graph = await this.getGraph();
+    const rawBlock = await this.client.getBlockViaUuid(blockUuid, {
+      includeChildren: true,
+    });
+    if (!rawBlock || !Array.isArray(rawBlock.children)) {
+      return [];
+    }
+    const rawChildren = rawBlock.children;
+    const rendered: LogseqBlockType[] = [];
+    for (const rawChild of rawChildren) {
+      // BlockUUIDTuple fallback shape: plain array, no content to render.
+      if (Array.isArray(rawChild)) continue;
+      const child = normalizeBlockTree(rawChild, (node) =>
+        renderBlock(node, graph, query),
+      );
+      if (child) rendered.push(child);
+    }
+    return rendered;
   }
 
   public async urlSearch(url: URL, opt: { fuzzy: boolean } = { fuzzy: false }) {

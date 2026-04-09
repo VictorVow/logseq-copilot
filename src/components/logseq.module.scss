@@ -139,6 +139,31 @@
   margin: 0;
 }
 
+.showChildrenButton {
+  @apply text-xs border-none bg-transparent cursor-pointer mt-1 p-0 self-start;
+  color: rgba(120, 120, 120, 0.9);
+
+  &:hover {
+    @apply underline;
+    color: var(--markerStatusHoverColor, black);
+  }
+
+  &:disabled {
+    @apply cursor-default opacity-60;
+  }
+}
+
+.childBlocksError {
+  @apply text-xs mt-1;
+  color: #c0392b;
+}
+
+.childBlocks {
+  @apply list-none mt-1 pl-3;
+  margin-bottom: 0;
+  border-left: 1px solid rgba(102, 102, 102, 0.3);
+}
+
 .pageCards {
   @apply flex flex-col gap-2;
 }
