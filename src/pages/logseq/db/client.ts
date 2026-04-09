@@ -90,6 +90,18 @@ export default class LogseqClient extends LogseqClientBase implements LogseqClie
     return await this.baseJson('logseq.Editor.getBlock', [uuid, opt]);
   };
 
+  public getBlockProperties = async (
+    uuid: string,
+  ): Promise<Record<string, unknown> | null> => {
+    return await this.baseJson('logseq.Editor.getBlockProperties', [uuid]);
+  };
+
+  public getPageProperties = async (
+    nameOrUuid: string,
+  ): Promise<Record<string, unknown> | null> => {
+    return await this.baseJson('logseq.Editor.getPageProperties', [nameOrUuid]);
+  };
+
   public isDBGraph = async () => {
     return await this.baseJson('logseq.App.checkCurrentIsDbGraph', []);
   };

@@ -1,8 +1,15 @@
+export type RenderedProperty = {
+  name: string;
+  values: string[];
+};
+
 export type LogseqPageIdenity = {
   name: string;
   id: number;
   uuid: string;
   originalName?: string;
+  title?: string;
+  properties?: RenderedProperty[];
 };
 
 export type LogseqBlockType = {
@@ -13,6 +20,7 @@ export type LogseqBlockType = {
   format: string;
   marker: string;
   priority: string;
+  properties?: RenderedProperty[];
 };
 
 export type LogseqPageContentType = {

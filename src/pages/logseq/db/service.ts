@@ -3,6 +3,7 @@ import LogseqClient from './client';
 import { renderBlock } from '../tool';
 import { LogseqServiceInterface } from '../interfaces';
 import { isPureBlockReference } from './blockReference';
+import { normalizeProperties } from './blockProperties';
 
 export default class LogseqDBService implements LogseqServiceInterface {
   public client: LogseqClient = new LogseqClient();
@@ -52,14 +53,22 @@ export default class LogseqDBService implements LogseqServiceInterface {
     };
 
     response.pages = await Promise.all(
-      pageHits.map((item) => getPageCached({ uuid: item.uuid })),
+      pageHits.map(async (item: any) => {
+        const [page, rawProps] = await Promise.all([
+          getPageCached({ uuid: item.uuid }),
+          this.client.getPageProperties(item.uuid).catch(() => null),
+        ]);
+        if (!page) return page;
+        return { ...page, properties: normalizeProperties(rawProps) };
+      }),
     );
 
     const fetchedBlocks = await Promise.all(
-      blockHits.map(async (item) => {
-        const block = await this.client.getBlockViaUuid(item.uuid, {
-          includeChildren: false,
-        });
+      blockHits.map(async (item: any) => {
+        const [block, rawProps] = await Promise.all([
+          this.client.getBlockViaUuid(item.uuid, { includeChildren: false }),
+          this.client.getBlockProperties(item.uuid).catch(() => null),
+        ]);
         // Skip blocks whose content is only a reference to another block --
         // the referenced block is already a search hit on its own, so
         // rendering both produces a duplicate result that shows up as a
@@ -68,6 +77,7 @@ export default class LogseqDBService implements LogseqServiceInterface {
           return null;
         }
         block.page = await getPageCached(block.page);
+        block.properties = normalizeProperties(rawProps);
         return renderBlock(block, graphName, query);
       }),
     );

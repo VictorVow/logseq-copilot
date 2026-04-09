@@ -1,5 +1,6 @@
 import { LogseqBlockType } from '@/types/logseqBlock';
 import LogseqPageLink from './LogseqPage';
+import { LogseqProperties } from './LogseqProperties';
 import Browser from 'webextension-polyfill';
 import styles from './logseq.module.scss';
 import React, { useEffect } from 'react';
@@ -124,15 +125,17 @@ export const LogseqBlock = ({ graph, blocks }: LogseqBlockProps) => {
                       <div className={styles.blockContent} dangerouslySetInnerHTML={{ __html: block.html }} />
                       {toBlock(block)}
                     </div>
+                    <LogseqProperties properties={block.properties} />
                   </li>
                 )
               }
               return (
-                <li className={styles.blockContentListItem}>
+                <li key={block.uuid} className={styles.blockContentListItem}>
                   <div className={styles.blockContentRoot} >
                     <div className={styles.blockContent} dangerouslySetInnerHTML={{ __html: block.html }} />
                     {toBlock(block)}
                   </div>
+                  <LogseqProperties properties={block.properties} />
                 </li>
               )
             })}
