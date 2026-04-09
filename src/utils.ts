@@ -21,6 +21,17 @@ export const removeUrlHash = (url: string) => {
   return hashIndex > 0 ? url.substring(0, hashIndex) : url;
 };
 
+/**
+ * True only for `http://` and `https://` URLs. Used to skip Logseq lookups
+ * on extension/chrome/about/file pages — notably the extension's own
+ * options page (`moz-extension://…/options.html`), where searching for
+ * the URL would fire pointless `logseq.Editor.getPage` calls.
+ */
+export const isWebUrl = (url: string | undefined | null): url is string => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
 // Tracking query parameters stripped before using a URL as a Logseq
 // search query. Compiled from Brave's query_filter list
 // (https://github.com/brave/brave-core/blob/master/components/query_filter/utils.cc)

@@ -8,6 +8,7 @@ import { LogseqBlock } from '@components/LogseqBlock';
 
 import styles from './index.module.scss';
 import { getLogseqService } from '@pages/logseq/tool';
+import { isWebUrl } from '@/utils';
 
 export default function Popup() {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +45,9 @@ export default function Popup() {
       let queryOptions = { active: true, lastFocusedWindow: true };
       let [tab] = await Browser.tabs.query(queryOptions);
       setIsLoading(true);
-      if (!tab || !tab.url) return;
+      // Skip extension/about/file pages — notably the options page — so we
+      // don't fire Logseq lookups when the popup is opened over one.
+      if (!isWebUrl(tab?.url)) return;
 
       const tabURL = new URL(tab.url);
       const service = await getLogseqService();

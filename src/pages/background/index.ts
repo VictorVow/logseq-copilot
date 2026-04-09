@@ -1,7 +1,7 @@
 import { browser } from '@/browser';
 import { getLogseqCopliotConfig } from '../../config';
 import { blockRending, versionCompare } from './utils';
-import { debounce } from '@/utils';
+import { debounce, isWebUrl } from '@/utils';
 import { format } from 'date-fns';
 import { changeOptionsHostToHostNameAndPort } from './upgrade';
 import {getLogseqService} from '@pages/logseq/tool';
@@ -119,7 +119,13 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 const badgeSearch = async (url: string | undefined, tabId: number) => {
-  if (!url) return;
+  // Skip extension/about/file pages so we don't hit Logseq (and fire a
+  // cascade of getPage calls) when the user opens the options page,
+  // popup, or any other non-web URL.
+  if (!isWebUrl(url)) {
+    await setExtensionBadge('', tabId);
+    return;
+  }
   const searchURL = new URL(url);
   const logseqService = await getLogseqService();
   const searchRes = await logseqService.urlSearch(searchURL);

@@ -63,7 +63,12 @@ export default class LogseqClientBase {
   baseJson = async (method: string, args: any[]) => {
     const resp = await this.baseFetch(method, args);
     const data = await resp.json();
-    console.debug(`Logseq Method ${method}, Response -> \n`, data);
+    // Suppress logging for the hot-path DB-graph detection check —
+    // getLogseqService() fires it on every request, flooding the
+    // console.
+    if (method !== 'logseq.App.checkCurrentIsDbGraph') {
+      console.debug(`Logseq Method ${method}, Response -> \n`, data);
+    }
     return data;
   };
 
