@@ -73,10 +73,48 @@ export const resolveBlockReferences = (
     .replace(BLOCK_REF_BRACKET_RE, swap);
 };
 
+// Strip the common markdown / Logseq inline syntaxes out of a string
+// so only the human-readable text remains. Used when building a
+// block-reference label -- the result gets spliced back into another
+// block's content, which is then re-parsed by marked, so the label
+// must not carry structural markup that could be cut in half by
+// truncation and leave an unbalanced `](` or `[[` behind.
+const stripInlineMarkupForLabel = (line: string): string => {
+  return (
+    line
+      // Drop image embeds entirely.
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      // Markdown link `[text](url)` -> text
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      // Logseq page ref `[[Page]]` -> Page
+      .replace(/\[\[([^\]]+)\]\]/g, '$1')
+      // Logseq block ref `((uuid))` -> drop (one-level resolution only).
+      .replace(/\(\([^)]+\)\)/g, '')
+      // Inline code / emphasis / strikethrough -> inner text
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/_([^_]+)_/g, '$1')
+      .replace(/~~([^~]+)~~/g, '$1')
+      // Collapse any whitespace runs introduced by stripped tokens.
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+};
+
 // Turn a block's full content into a short, single-line label suitable
-// for inlining in place of a `((uuid))` reference. Mirrors what Logseq
-// desktop shows for block-ref previews: first non-empty line, trimmed,
-// and capped so deeply-nested refs don't blow out the sidebar width.
+// for inlining in place of a `((uuid))` reference.
+//
+// Strategy: look at the *visible* length -- the length after stripping
+// markdown/Logseq inline syntax -- to decide whether the first line is
+// "short enough". If it is, return the RAW first line with its
+// markdown intact, so that when the label gets spliced back into the
+// parent block's content, marked can still parse the link/page-ref/
+// emphasis and render it normally. Only when the visible prose itself
+// is longer than the cap do we fall through to stripping + truncating
+// to plain text, because at that point any safe truncation point
+// would risk cutting a markdown link or ref in half.
 export const blockReferenceLabel = (
   content: string | undefined | null,
 ): string => {
@@ -91,7 +129,28 @@ export const blockReferenceLabel = (
     }
   }
   if (firstLine.length === 0) return '';
+
   const max = 80;
-  if (firstLine.length <= max) return firstLine;
-  return firstLine.slice(0, max - 1) + '\u2026';
+  const visible = stripInlineMarkupForLabel(firstLine);
+
+  if (visible.length === 0) {
+    // Stripping ate everything -- first line is a lone image embed or
+    // block ref with no prose. Fall back to the raw line so the user
+    // sees something; truncate only if even the raw string is huge.
+    if (firstLine.length <= max) return firstLine;
+    return firstLine.slice(0, max - 1) + '\u2026';
+  }
+
+  if (visible.length <= max) {
+    // Common case: the visible prose fits. Keep the raw markdown so
+    // links / page refs / emphasis survive the splice-back into the
+    // parent content and marked re-renders them correctly.
+    return firstLine;
+  }
+
+  // Visible prose alone exceeds the cap. At this point any raw-level
+  // truncation would risk cutting inside `[text](url)` or `[[uuid]]`
+  // and leaving a broken token that trips up marked on the parent
+  // block. Fall through to plain text so truncation is safe.
+  return visible.slice(0, max - 1) + '\u2026';
 };
