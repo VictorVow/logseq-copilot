@@ -59,12 +59,14 @@ export const LogseqCopliot = ({ connect }: LogseqCopliotProps) => {
 
   return (
     <>
-      <FloatingButton
-        count={count}
-        isOpen={isPanelOpen}
-        loaded={loaded}
-        onClick={() => setPanelOpen((v) => !v)}
-      />
+      {loaded && count > 0 && (
+        <FloatingButton
+          count={count}
+          isOpen={isPanelOpen}
+          loaded={loaded}
+          onClick={() => setPanelOpen((v) => !v)}
+        />
+      )}
       <SidePanel
         isOpen={isPanelOpen}
         onClose={() => setPanelOpen(false)}
