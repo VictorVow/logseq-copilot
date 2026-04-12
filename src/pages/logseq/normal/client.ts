@@ -57,6 +57,14 @@ export default class LogseqClient
     return resp;
   };
 
+  public prependBlock = async (page: string, content: string) => {
+    const resp = await this.baseJson('logseq.Editor.prependBlockInPage', [
+      page,
+      content,
+    ]);
+    return resp;
+  };
+
   public getCurrentPage = async () => {
     return await this.catchIssues(async () => {
       return await this.baseJson('logseq.Editor.getCurrentPage', []);

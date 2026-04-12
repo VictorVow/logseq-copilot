@@ -111,6 +111,14 @@ export const ClipNoteOptions = () => {
             <Radio value="customPage">Custom Page</Radio>
           </Stack>
         </RadioGroup>
+        <Text fontSize="md" mb="0">
+          Add block to top of page instead of bottom
+        </Text>
+        <Switch
+          name="clipNoteAddToTop"
+          isChecked={logseqConfig?.clipNoteAddToTop}
+          onChange={onChange}
+        />
         <Text fontSize="md">Custom Page Name</Text>
         <Input
           isDisabled={logseqConfig?.clipNoteLocation !== 'customPage'}
