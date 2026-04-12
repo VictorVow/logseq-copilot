@@ -1,84 +1,83 @@
 import Browser from 'webextension-polyfill';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import React from 'react';
-import { LogseqSearchResult } from '@/types/logseqBlock';
 import { IconSettings } from '@tabler/icons-react';
-
-import { LogseqBlock } from '@components/LogseqBlock';
 
 import styles from './index.module.scss';
 import { getLogseqService } from '@pages/logseq/tool';
-import { isWebUrl } from '@/utils';
 
 export default function Popup() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [logseqSearchResult, setLogseqSearchResult] =
-    React.useState<LogseqSearchResult>();
-
-  const mountOpenPageMethod = () => {
-    const innerFunction = () => {
-      if (isLoading) return;
-      document.querySelectorAll('a').forEach((e) => {
-        if (e.onclick === null) {
-          e.onclick = () => {
-            Browser.runtime
-              .sendMessage({
-                type: 'open-page',
-                url: e.href,
-              })
-              .then(() => window.close());
-          };
-        }
-        if (!isLoading) {
-          clearInterval(interval);
-
-        }
-      });
-    };
-    const interval = setInterval(innerFunction, 50);
-  };
+  const [graphName, setGraphName] = useState<string>('');
+  const [content, setContent] = useState('');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (isLoading) return;
+    (async () => {
+      try {
+        const service = await getLogseqService();
+        const name = await service.getGraph();
+        setGraphName(name);
+      } catch {
+        setGraphName('(not connected)');
+      }
+    })();
+  }, []);
 
-    new Promise(async () => {
-      let queryOptions = { active: true, lastFocusedWindow: true };
-      let [tab] = await Browser.tabs.query(queryOptions);
-      setIsLoading(true);
-      // Skip extension/about/file pages — notably the options page — so we
-      // don't fire Logseq lookups when the popup is opened over one.
-      if (!isWebUrl(tab?.url)) return;
-
-      const tabURL = new URL(tab.url);
-      const service = await getLogseqService();
-      const result = await service.urlSearch(tabURL, { fuzzy: true });
-
-      if (result.status !== 200) return;
-
-      setLogseqSearchResult(result.response!);
-      mountOpenPageMethod();
-    });
+  useEffect(() => {
+    textareaRef.current?.focus();
   }, []);
 
   const openSettingsPage = () => {
     Browser.runtime.sendMessage({ type: 'open-options' });
   };
 
+  const addToLogseq = async () => {
+    if (!content.trim() || status === 'sending') return;
+    setStatus('sending');
+    try {
+      await Browser.runtime.sendMessage({
+        type: 'clip-with-selection',
+        data: content.trim(),
+      });
+      setStatus('sent');
+      setContent('');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      addToLogseq();
+    }
+  };
+
   return (
     <div className="copilot">
       <div className={styles.content}>
         <div className={styles.copilotCardHeader}>
-          <span>Graph: {logseqSearchResult?.graph}</span>
+          <span>Graph: {graphName}</span>
           <IconSettings size={16} onClick={openSettingsPage} />
         </div>
-        {logseqSearchResult?.blocks.slice(0, 20).map((block) => (
-          <LogseqBlock
-            key={block.uuid}
-            graph={logseqSearchResult?.graph}
-            blocks={[block]}
-            isPopUp={true}
-          />
-        ))}
+        <textarea
+          ref={textareaRef}
+          className={styles.captureInput}
+          placeholder="Type or paste content to add to Logseq..."
+          value={content}
+          onChange={(e) => {
+            setContent(e.target.value);
+            if (status !== 'idle') setStatus('idle');
+          }}
+          onKeyDown={handleKeyDown}
+        />
+        <button
+          className={styles.addButton}
+          onClick={addToLogseq}
+          disabled={!content.trim() || status === 'sending'}
+        >
+          {status === 'sending' ? 'Adding...' : status === 'sent' ? 'Added!' : 'Add to Logseq'}
+        </button>
       </div>
     </div>
   );
