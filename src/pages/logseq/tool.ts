@@ -92,7 +92,18 @@ export const renderBlock = (
     walkTokens: query ? highlightTokens(query) : undefined,
     extensions: [logseqLinkExt(graphName, query)],
   });
-  const html = marked.parse(cleanContent).trim();
+  let html = marked.parse(cleanContent).trim();
+
+  // Rewrite external links to point at the block in Logseq desktop.
+  // Links already targeting logseq:// (page refs, resolved block refs)
+  // are preserved by the negative lookahead.
+  if (block.uuid) {
+    const blockHref = `logseq://graph/${graphName}?block-id=${block.uuid}`;
+    html = html.replace(
+      /(<a\b[^>]*?\s)href="(?!logseq:\/\/)[^"]*"/g,
+      (_, prefix) => `${prefix}href="${blockHref}"`,
+    );
+  }
 
   block.html = html;
   return block;
