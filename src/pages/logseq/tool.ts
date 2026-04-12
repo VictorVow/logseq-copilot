@@ -87,10 +87,23 @@ export const renderBlock = (
   query?: string,
 ) => {
   const cleanContent = cleanBlock(block);
+  const blockHref = block.uuid
+    ? `logseq://graph/${graphName}?block-id=${block.uuid}`
+    : undefined;
   marked.use({
     gfm: true,
     walkTokens: query ? highlightTokens(query) : undefined,
     extensions: [logseqLinkExt(graphName, query)],
+    renderer: {
+      link({ href, text }) {
+        // Links already pointing at Logseq (page refs, resolved block
+        // refs) keep their original href. External markdown links are
+        // rewritten to navigate to the block in Logseq so clicking a
+        // result always opens the app instead of an unrelated website.
+        const target = href.startsWith('logseq://') ? href : blockHref ?? href;
+        return `<a href="${target}">${text}</a>`;
+      },
+    },
   });
   const html = marked.parse(cleanContent).trim();
 
