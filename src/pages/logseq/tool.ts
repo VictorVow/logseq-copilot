@@ -24,6 +24,8 @@ export const cleanBlock = (block: LogseqBlockType): string => {
   }
 
   return result
+    .replaceAll(/#\[\[.*?\]\]\s*/g, '') // strip inline tags like #[[Clip]]
+    .replaceAll(/#[\w-]+\s*/g, '') // strip bare tags like #Clip
     .replaceAll(/!\[.*?\]\(\.\.\/assets.*?\)/gim, '')
     .replaceAll(/^[\w-]+::.*?$/gim, '') // clean properties
     .replaceAll(/{{renderer .*?}}/gim, '') // clean renderer
