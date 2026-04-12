@@ -181,7 +181,7 @@ export default class LogseqDBService implements LogseqServiceInterface {
         block.page = await getPageCached(block.page);
         block.properties = normalizeProperties(rawProps);
         if (typeof block.content === 'string') {
-          block.content = resolveBlockReferences(block.content, rootRefMap);
+          block.content = resolveBlockReferences(block.content, rootRefMap, graphName);
         }
         const rendered: LogseqBlockType = renderBlock(block, graphName, query);
         rendered.hasChildren = hasChildren;
@@ -255,7 +255,7 @@ export default class LogseqDBService implements LogseqServiceInterface {
       if (Array.isArray(rawChild)) continue;
       const child = normalizeBlockTree(rawChild, (node) => {
         if (typeof node.content === 'string') {
-          node.content = resolveBlockReferences(node.content, refMap);
+          node.content = resolveBlockReferences(node.content, refMap, graph);
         }
         return renderBlock(node, graph, query);
       });

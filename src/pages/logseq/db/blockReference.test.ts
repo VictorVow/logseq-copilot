@@ -113,37 +113,44 @@ describe('collectBlockReferenceUuids', () => {
 });
 
 describe('resolveBlockReferences', () => {
+  const graph = 'test-graph';
   const refMap = new Map<string, string>([
     ['632093e1-e4e6-4c84-ae91-1f468cfb7fbb', 'Stolen Realm review'],
-    ['647b02b4-979e-4e7e-8a91-5a5237186f39', 'Pros and cons'],
+    ['647b02b4-979e-4e7e-8a91-5a5237186f39', 'Inkbound'],
   ]);
 
   test('returns the original content when there is nothing to replace', () => {
-    expect(resolveBlockReferences('plain text', refMap)).toBe('plain text');
-    expect(resolveBlockReferences('', refMap)).toBe('');
+    expect(resolveBlockReferences('plain text', refMap, graph)).toBe('plain text');
+    expect(resolveBlockReferences('', refMap, graph)).toBe('');
   });
 
-  test('substitutes a `((uuid))` reference with its label', () => {
+  test('replaces a `((uuid))` ref with a markdown link to the Logseq block', () => {
     expect(
       resolveBlockReferences(
         'enjoy ((632093e1-e4e6-4c84-ae91-1f468cfb7fbb)) for combat',
         refMap,
+        graph,
       ),
-    ).toBe('enjoy Stolen Realm review for combat');
+    ).toBe(
+      'enjoy [Stolen Realm review](logseq://graph/test-graph?block-id=632093e1-e4e6-4c84-ae91-1f468cfb7fbb) for combat',
+    );
   });
 
-  test('substitutes a `[[uuid]]` reference with its label', () => {
+  test('replaces a `[[uuid]]` ref with a markdown link to the Logseq block', () => {
     expect(
       resolveBlockReferences(
         'see [[647b02b4-979e-4e7e-8a91-5a5237186f39]]',
         refMap,
+        graph,
       ),
-    ).toBe('see Pros and cons');
+    ).toBe(
+      'see [Inkbound](logseq://graph/test-graph?block-id=647b02b4-979e-4e7e-8a91-5a5237186f39)',
+    );
   });
 
   test('leaves unknown uuids untouched so the user still sees the raw ref', () => {
     const content = 'ghost ((deadbeef-dead-beef-dead-beefdeadbeef))';
-    expect(resolveBlockReferences(content, refMap)).toBe(content);
+    expect(resolveBlockReferences(content, refMap, graph)).toBe(content);
   });
 
   test('handles multiple refs in a single content string', () => {
@@ -152,8 +159,13 @@ describe('resolveBlockReferences', () => {
         '((632093e1-e4e6-4c84-ae91-1f468cfb7fbb)) vs ' +
           '((647b02b4-979e-4e7e-8a91-5a5237186f39))',
         refMap,
+        graph,
       ),
-    ).toBe('Stolen Realm review vs Pros and cons');
+    ).toBe(
+      '[Stolen Realm review](logseq://graph/test-graph?block-id=632093e1-e4e6-4c84-ae91-1f468cfb7fbb)' +
+        ' vs ' +
+        '[Inkbound](logseq://graph/test-graph?block-id=647b02b4-979e-4e7e-8a91-5a5237186f39)',
+    );
   });
 
   test('matches uppercase uuids against the lowercased refMap', () => {
@@ -161,8 +173,11 @@ describe('resolveBlockReferences', () => {
       resolveBlockReferences(
         '((632093E1-E4E6-4C84-AE91-1F468CFB7FBB))',
         refMap,
+        graph,
       ),
-    ).toBe('Stolen Realm review');
+    ).toBe(
+      '[Stolen Realm review](logseq://graph/test-graph?block-id=632093e1-e4e6-4c84-ae91-1f468cfb7fbb)',
+    );
   });
 });
 
@@ -197,44 +212,32 @@ describe('blockReferenceLabel', () => {
     expect(blockReferenceLabel(short)).toBe(short);
   });
 
-  test('preserves a markdown link verbatim when its visible text fits under the cap', () => {
-    // Raw string is 84 chars (because of the URL) but the visible
-    // text "Across the Obelisk" is only 18. The label must return
-    // the RAW line so when it gets spliced into the parent content,
-    // marked can re-parse and render the link as clickable.
-    const raw =
-      '[Across the Obelisk](https://store.steampowered.com/app/1385380/Across_the_Obelisk/)';
-    expect(blockReferenceLabel(raw)).toBe(raw);
+  test('strips a markdown link down to its visible text', () => {
+    expect(
+      blockReferenceLabel(
+        '[Across the Obelisk](https://store.steampowered.com/app/1385380/Across_the_Obelisk/)',
+      ),
+    ).toBe('Across the Obelisk');
   });
 
-  test('preserves a Logseq page reference so it still renders as a page link', () => {
-    expect(blockReferenceLabel('[[Wildermyth]]')).toBe('[[Wildermyth]]');
+  test('strips a Logseq page reference to the page name', () => {
+    expect(blockReferenceLabel('[[Wildermyth]]')).toBe('Wildermyth');
   });
 
-  test('preserves inline emphasis, strong, and code when the prose is short', () => {
-    const raw = '**bold** and *italic* and `code`';
-    expect(blockReferenceLabel(raw)).toBe(raw);
+  test('strips inline emphasis, strong, and code', () => {
+    expect(blockReferenceLabel('**bold** and *italic* and `code`')).toBe(
+      'bold and italic and code',
+    );
   });
 
-  test('preserves markdown links mixed with plain prose as long as visible length fits', () => {
-    const raw =
-      'see [docs](https://example.com/a/very/long/path/to/page) for details';
-    expect(blockReferenceLabel(raw)).toBe(raw);
-  });
-
-  test('falls back to stripped plain text when the visible prose exceeds the cap', () => {
+  test('truncates when the stripped plain text exceeds the cap', () => {
     const long = 'plain prose '.repeat(20); // 240 chars of real text
     const result = blockReferenceLabel(long);
     expect(result).toHaveLength(80);
     expect(result.endsWith('\u2026')).toBe(true);
-    // Plain-text fallback means no surviving markdown tokens.
-    expect(result).not.toContain('[');
   });
 
   test('returns raw first line when stripping eats everything', () => {
-    // Lone image embed: the visible length is zero because the image
-    // was dropped. The fallback branch should surface the raw line
-    // so the user still sees *something*.
     const raw = '![screenshot](https://example.com/s.png)';
     expect(blockReferenceLabel(raw)).toBe(raw);
   });
