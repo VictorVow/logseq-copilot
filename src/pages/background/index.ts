@@ -1,7 +1,6 @@
 import { browser } from '@/browser';
 import { getLogseqCopliotConfig } from '../../config';
 import { blockRending, versionCompare } from './utils';
-import { debounce, isWebUrl } from '@/utils';
 import { format } from 'date-fns';
 import { changeOptionsHostToHostNameAndPort } from './upgrade';
 import {getLogseqService} from '@pages/logseq/tool';
@@ -15,17 +14,6 @@ browser.runtime.onConnect.addListener((port) => {
         console.debug("search result", searchRes)
         port.postMessage(searchRes);
 
-        // Update the toolbar badge using the result of *this* search
-        // so we don't need a separate tabs.onActivated badgeSearch
-        // path (which would fire a duplicate logseq.App.search for
-        // every tab switch).
-        const tabId = port.sender?.tab?.id;
-        if (tabId !== undefined) {
-          const resp = searchRes.response;
-          const count =
-            (resp?.blocks?.length ?? 0) + (resp?.pages?.length ?? 0);
-          await setExtensionBadge(count > 0 ? String(count) : '', tabId);
-        }
       });
 
       promise.catch((err) => console.error(err));
@@ -154,37 +142,8 @@ const quickCapture = async (data: string) => {
     await insertBlock(journalPage, block);
   }
 
-  debounceBadgeSearch(activeTab.url, activeTab.id!);
 };
 
-// Clear the badge when a tab navigates to a non-web URL (about:,
-// moz-extension:, file:, etc.) so stale counts from a previous page
-// don't linger. For web URLs the content script fires a query
-// through the port connection and `onConnect` sets the badge from
-// that result — no duplicate search needed here.
-browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete') return;
-  if (!isWebUrl(tab.url)) {
-    setExtensionBadge('', tabId).catch((err) => console.error(err));
-  }
-});
-
-// Fresh lookup used only after a QuickCapture clip, so the badge
-// reflects the new block count for the current page. Not wired to
-// tab events.
-const badgeSearch = async (url: string | undefined, tabId: number) => {
-  if (!isWebUrl(url)) {
-    await setExtensionBadge('', tabId);
-    return;
-  }
-  const searchURL = new URL(url);
-  const logseqService = await getLogseqService();
-  const searchRes = await logseqService.urlSearch(searchURL);
-  const resultCount = searchRes.count ? searchRes.count!.toString() : '';
-  await setExtensionBadge(resultCount, tabId);
-};
-
-const debounceBadgeSearch = debounce(badgeSearch, 1000);
 
 try {
   browser.contextMenus.create({
@@ -228,11 +187,3 @@ browser.commands.onCommand.addListener((command, tab) => {
   }
 });
 
-async function setExtensionBadge(text: string, tabId: number) {
-  await browser.action.setBadgeText({
-    text: text,
-    tabId: tabId,
-  });
-  await browser.action.setBadgeBackgroundColor({ color: '#4caf50', tabId });
-  await browser.action.setBadgeTextColor({ color: '#ffffff', tabId });
-}

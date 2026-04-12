@@ -1,14 +1,14 @@
 @tailwind base;
 
 body {
-  @apply w-80 rounded-lg;
+  @apply w-80 rounded-lg overflow-hidden;
 }
 
 .copilot {
-  @apply flex flex-col w-full max-w-sm gap-2 pb-4;
+  @apply flex flex-col w-full gap-2 pb-4;
 
   .content {
-    @apply flex flex-col gap-4 prose-sm whitespace-pre-wrap text-sm;
+    @apply flex flex-col gap-4 prose-sm whitespace-pre-wrap text-sm px-2;
     * {
       @apply break-all text-sm;
     }
