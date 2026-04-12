@@ -124,7 +124,7 @@ const quickCapture = async (data: string) => {
   const tab = await getCurrentTab();
   if (!tab) return;
   const activeTab = tab;
-  const { clipNoteLocation, clipNoteCustomPage, clipNoteTemplate, clipNoteAddToTop } =
+  const { clipNoteLocation, clipNoteCustomPage, clipNoteTemplate, clipNoteAddToTop, clipNoteTags } =
     await getLogseqCopliotConfig();
   const now = new Date();
   const logseqService = await getLogseqService();
@@ -140,18 +140,28 @@ const quickCapture = async (data: string) => {
     time: now,
   });
 
+  const tagPrefix = clipNoteTags
+    ? clipNoteTags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((t) => `#[[${t}]]`)
+        .join(' ') + ' '
+    : '';
+  const blockWithTags = tagPrefix + block;
+
   const insertBlock = clipNoteAddToTop
     ? logseqService.client.prependBlock
     : logseqService.client.appendBlock;
 
   if (clipNoteLocation === 'customPage') {
-    await insertBlock(clipNoteCustomPage, block);
+    await insertBlock(clipNoteCustomPage, blockWithTags);
   } else if (clipNoteLocation === 'currentPage') {
     const { name: currentPage } = await logseqService.client.getCurrentPage();
-    await insertBlock(currentPage, block);
+    await insertBlock(currentPage, blockWithTags);
   } else {
     const journalPage = format(now, resp['preferredDateFormat']);
-    await insertBlock(journalPage, block);
+    await insertBlock(journalPage, blockWithTags);
   }
 
   debounceBadgeSearch(activeTab.url, activeTab.id!);

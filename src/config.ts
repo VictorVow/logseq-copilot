@@ -11,6 +11,7 @@ export type LogseqCopliotConfig = {
   clipNoteCustomPage: string;
   clipNoteTemplate: string;
   clipNoteAddToTop: boolean;
+  clipNoteTags: string;
 };
 
 export const getLogseqCopliotConfig =
@@ -24,9 +25,10 @@ export const getLogseqCopliotConfig =
       enableClipNoteFloatButton = false,
       clipNoteLocation = "journal",
       clipNoteCustomPage = "",
-      clipNoteTemplate = `#[[Clip]] [{{title}}]({{url}})
+      clipNoteTemplate = `[{{title}}]({{url}})
 {{content}}`,
       clipNoteAddToTop = false,
+      clipNoteTags = '',
     } = await Browser.storage.local.get();
     return {
       version,
@@ -39,6 +41,7 @@ export const getLogseqCopliotConfig =
       clipNoteCustomPage,
       clipNoteTemplate,
       clipNoteAddToTop,
+      clipNoteTags,
     };
   };
 

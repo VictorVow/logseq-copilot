@@ -127,6 +127,13 @@ export const ClipNoteOptions = () => {
           onChange={updateCustomPage}
           placeholder="Custom Page Name"
         />
+        <Text fontSize="md">Block Tags</Text>
+        <Input
+          name="clipNoteTags"
+          value={logseqConfig?.clipNoteTags}
+          onChange={onChange}
+          placeholder="Tag1, Tag2"
+        />
         <Text fontSize="md">Clip Template</Text>
         <Textarea
           height={36}
