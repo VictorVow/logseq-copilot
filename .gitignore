@@ -27,6 +27,13 @@ Flashpost-tests/
 
 # secrets
 secrets.*.js
+.env
 .vscode/
+
+# nix
+result
+
+# signed XPIs from web-ext sign
+/web-ext-artifacts
 
 .envrc
