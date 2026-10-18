@@ -14,9 +14,13 @@ const ReleaseFor = {
     background: {
       scripts: ['background.js'],
     },
+    developer: {
+      name: 'VictorVow',
+      url: 'https://github.com/VictorVow/logseq-copilot',
+    },
     browser_specific_settings: {
       gecko: {
-        id: '{dbe73d0a-f6b8-474a-ad39-0d46a07e4525}',
+        id: '{b460bedc-e57a-47bd-9561-f3f1b226fadd}',
       },
     },
   },
@@ -26,7 +30,7 @@ const build = (releaseFor) => {
   return {
     manifest_version: 3,
     version: process.env.VERSION?.replace('v', '') ?? '0.0.0',
-    author: 'eindex.lee@gmail.com',
+    author: 'VictorVow',
     name: 'Logseq Copilot',
     description:
       'Logseq Copilot, Connect with you logseq API server, bring your information when you browsing.',
