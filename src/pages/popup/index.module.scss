@@ -107,3 +107,18 @@ body {
     @apply opacity-50 cursor-not-allowed;
   }
 }
+
+.permissionBanner {
+  @apply flex flex-col gap-2 rounded-md border border-yellow-600 bg-yellow-900 text-yellow-100 p-2 text-sm;
+
+  button {
+    @apply rounded-md py-1 px-2 text-sm font-medium text-white;
+    background-color: #2196f3;
+    border: none;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #1976d2;
+    }
+  }
+}

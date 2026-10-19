@@ -5,12 +5,14 @@ import { IconSettings } from '@tabler/icons-react';
 
 import styles from './index.module.scss';
 import { getLogseqService } from '@pages/logseq/tool';
+import { requestHostPermission, useHostPermission } from '@/hostPermission';
 
 export default function Popup() {
   const [graphName, setGraphName] = useState<string>('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const hostPermission = useHostPermission();
 
   useEffect(() => {
     (async () => {
@@ -60,6 +62,12 @@ export default function Popup() {
           <span>Graph: {graphName}</span>
           <IconSettings size={16} onClick={openSettingsPage} />
         </div>
+        {hostPermission === false && (
+          <div className={styles.permissionBanner}>
+            <span>Logseq Copilot can't access websites until you allow it.</span>
+            <button onClick={requestHostPermission}>Allow on all sites</button>
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           className={styles.captureInput}
