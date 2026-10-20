@@ -1,4 +1,4 @@
-import { getLogseqCopliotConfig } from '@/config';
+import { getLogseqCopliotConfig, isHostBlacklisted } from '@/config';
 import { fixDuckDuckGoDark } from '@/utils';
 import { createRoot, Root } from 'react-dom/client';
 import Browser from 'webextension-polyfill';
@@ -77,24 +77,48 @@ const initPlugin = () => {
   }
 };
 
-// Defer initialization until the tab is actually being viewed, so
-// background tabs don't fire a Logseq search on every page load or
-// extension reload. Firefox re-injects content scripts into all
-// matching tabs when a temporary addon reloads — without this gate
-// every open tab would hit the API regardless of whether the user
-// is looking at it.
-if (document.visibilityState === 'visible') {
-  initPlugin();
-} else {
-  const onVisible = () => {
-    if (document.visibilityState !== 'visible') return;
-    document.removeEventListener('visibilitychange', onVisible);
+const start = () => {
+  // Defer initialization until the tab is actually being viewed, so
+  // background tabs don't fire a Logseq search on every page load or
+  // extension reload. Firefox re-injects content scripts into all
+  // matching tabs when a temporary addon reloads — without this gate
+  // every open tab would hit the API regardless of whether the user
+  // is looking at it.
+  if (document.visibilityState === 'visible') {
     initPlugin();
-  };
-  document.addEventListener('visibilitychange', onVisible);
-}
+  } else {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      document.removeEventListener('visibilitychange', onVisible);
+      initPlugin();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+  }
 
-getLogseqCopliotConfig().then(({ enableClipNoteFloatButton }) => {
-  if (!enableClipNoteFloatButton) return;
-  mountQuickCapture();
+  getLogseqCopliotConfig().then(({ enableClipNoteFloatButton }) => {
+    if (!enableClipNoteFloatButton) return;
+    mountQuickCapture();
+  });
+};
+
+// Blacklisting hides the injected UI in place rather than reloading the page.
+const injectedIds = ['logseq-copilot-root', 'logseq-copilot-popup'];
+let started = false;
+
+const applyBlacklist = async () => {
+  const blacklisted = await isHostBlacklisted(window.location.hostname);
+  for (const id of injectedIds) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = blacklisted ? 'none' : '';
+  }
+  if (!blacklisted && !started) {
+    started = true;
+    start();
+  }
+};
+
+Browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.blacklistedHosts) applyBlacklist();
 });
+
+applyBlacklist();

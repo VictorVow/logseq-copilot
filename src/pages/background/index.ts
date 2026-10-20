@@ -1,5 +1,10 @@
 import { browser } from '@/browser';
-import { getLogseqCopliotConfig } from '../../config';
+import {
+  getHostname,
+  getLogseqCopliotConfig,
+  isHostBlacklisted,
+  toggleHostBlacklisted,
+} from '../../config';
 import { blockRending, versionCompare } from './utils';
 import { format } from 'date-fns';
 import { changeOptionsHostToHostNameAndPort } from './upgrade';
@@ -167,7 +172,43 @@ try {
   console.log(error);
 }
 
-browser.contextMenus.onClicked.addListener((info, tab) => {
+const BLACKLIST_MENU_ID = 'toggle-site-blacklist';
+
+try {
+  browser.contextMenus.create({
+    id: BLACKLIST_MENU_ID,
+    title: 'Disable Logseq Copilot on this site',
+    visible: true,
+    contexts: ['action'],
+  });
+} catch (error) {
+  console.log(error);
+}
+
+const updateBlacklistMenu = async (tab?: { url?: string }) => {
+  const hostname = getHostname(tab?.url);
+  if (!hostname) return;
+  const blacklisted = await isHostBlacklisted(hostname);
+  await browser.contextMenus.update(BLACKLIST_MENU_ID, {
+    title: `${blacklisted ? 'Enable' : 'Disable'} Logseq Copilot on ${hostname}`,
+  });
+};
+
+browser.tabs.onActivated.addListener(async ({ tabId }) => {
+  updateBlacklistMenu(await browser.tabs.get(tabId)).catch(() => {});
+});
+browser.tabs.onUpdated.addListener((_id, changeInfo, tab) => {
+  if (changeInfo.url && tab.active) updateBlacklistMenu(tab).catch(() => {});
+});
+
+browser.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === BLACKLIST_MENU_ID) {
+    const hostname = getHostname(tab?.url);
+    if (!hostname) return;
+    await toggleHostBlacklisted(hostname);
+    await updateBlacklistMenu(tab);
+    return;
+  }
   browser.tabs.sendMessage(tab!.id!, { type: info.menuItemId }, {});
 });
 
